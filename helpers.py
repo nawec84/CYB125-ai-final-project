@@ -287,12 +287,43 @@ def get_system_identity(snapshot):
 # AI prompt: see Milestone 3 in the project spec.
 
 def get_password_policy(snapshot):
+    # Initialize the info dictionary to hold password policy fields
     info = {}
     try:
-        # TODO Milestone 3: parse `net accounts` and populate the 7 fields
-        # listed in the comment block above. Use run_command() to invoke
-        # the command, then walk its output line by line.
-        pass
+        # Run the 'net accounts' command to retrieve password policy settings; this command provides the necessary output in a parseable format without needing direct registry access
+        output = run_command(["net", "accounts"])
+        # Define a helper function to parse values: convert 'Never' to None, otherwise attempt integer conversion; deliberate choice to use case-insensitive check for 'never' to handle potential variations, could alternatively check exact case if needed
+        def parse_value(v):
+            v = v.strip()
+            if v.lower() == "never":
+                return None
+            try:
+                return int(v)
+            except ValueError:
+                return None  # Fallback for unexpected non-numeric values to prevent crashes
+        # Parse each line of the command output
+        for line in output.splitlines():
+            if ":" in line:
+                # Split on the first colon to separate label and value; using split(":", 1) ensures labels with colons are handled correctly
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    label = parts[0].strip()
+                    value = parts[1].strip()
+                    # Map specific labels to the required fields
+                    if label == "Minimum password length":
+                        info["minimum_password_length"] = parse_value(value)  # Extract minimum password length as integer or None
+                    elif label == "Minimum password age (days)":
+                        info["minimum_password_age_days"] = parse_value(value)  # Extract minimum password age in days
+                    elif label == "Maximum password age (days)":
+                        info["maximum_password_age_days"] = parse_value(value)  # Extract maximum password age in days
+                    elif label == "Length of password history maintained":
+                        info["password_history_length"] = parse_value(value)  # Extract password history length
+                    elif label == "Lockout threshold":
+                        info["lockout_threshold"] = parse_value(value)  # Extract lockout threshold (attempts before lockout)
+                    elif label == "Lockout duration (minutes)":
+                        info["lockout_duration_minutes"] = parse_value(value)  # Extract lockout duration in minutes
+                    elif label == "Lockout observation window (minutes)":
+                        info["lockout_observation_window_minutes"] = parse_value(value)  # Extract lockout observation window in minutes
     except Exception as e:
         add_warning(snapshot, "password_policy failed: " + str(e))
     return info
