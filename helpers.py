@@ -463,7 +463,35 @@ def add_running_processes(snapshot):
         # TODO Milestone 5: parse `tasklist /fo csv` and append one dict
         # per process to snapshot["running_processes"].
         # Remember: this function does NOT return anything.
-        pass
+        # Run the tasklist command with CSV output format; /fo csv produces comma-separated values with a header row
+        output = run_command(["tasklist", "/fo", "csv"])
+        # Create a CSV reader from the output split into lines; this parses quoted CSV values correctly
+        reader = csv.reader(output.splitlines())
+        # Skip the header row; the first row contains column names, not data
+        next(reader)
+        # Iterate over each remaining row (each one represents a running process)
+        for row in reader:
+            # Ensure row has at least 2 columns; some malformed rows might be shorter
+            if len(row) < 2:
+                continue
+            # Extract Image Name (process executable name) from column 0
+            process_name = row[0].strip()
+            # Extract PID (process ID) from column 1 as a string that needs conversion
+            pid_str = row[1].strip()
+            # Attempt to convert PID from string to integer; wrap in try/except to handle non-numeric values that might appear in malformed rows
+            try:
+                pid = int(pid_str)
+            except ValueError:
+                # If conversion fails, skip this row to avoid crashes; deliberate choice to skip bad rows rather than set a default value, could alternatively use a sentinel like -1 if needed
+                continue
+            # Append a dictionary entry to running_processes list; tasklist doesn't provide parent_pid, executable_path, or command_line, so they default to None
+            snapshot["running_processes"].append({
+                "pid": pid,
+                "name": process_name,
+                "parent_pid": None,        # not available from tasklist; would require WMI or psutil library to retrieve
+                "executable_path": None,   # not available from tasklist; would require WMI or other Windows APIs
+                "command_line": None       # not available from tasklist; would require wmic or psutil to retrieve
+            })
     except Exception as e:
         add_warning(snapshot, "running_processes failed: " + str(e))
 
