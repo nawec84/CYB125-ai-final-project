@@ -668,11 +668,88 @@ def get_persistence_locations(snapshot):
 # AI prompt: see Milestone 7 in the project spec.
 
 def get_network_configuration(snapshot):
+    # Create the structure that will hold the parsed network adapters.
     info = {"primary_dns_suffix": "", "adapters": []}
     try:
-        # TODO Milestone 7a: parse `ipconfig /all` into a list of adapter
-        # dicts as described above.
-        pass
+        # Run ipconfig /all to collect detailed network adapter configuration.
+        output = run_command(["ipconfig", "/all"])
+
+        # Track the current adapter as we walk the lines.
+        current_adapter = None
+        # Track the last parsed label to handle multi-line DNS entries.
+        last_label = None
+
+        # Process ipconfig output one line at a time.
+        for line in output.splitlines():
+            # Remove only trailing whitespace so indentation remains available for continuation lines.
+            stripped = line.rstrip()
+
+            # Detect adapter header lines which end in ':' and have no leading whitespace.
+            if stripped.endswith(":") and not line.startswith(" ") and not line.startswith("\t"):
+                if current_adapter is not None:
+                    # Save the previous adapter before starting a new one.
+                    info["adapters"].append(current_adapter)
+                # Start a new adapter record with default empty values.
+                current_adapter = {
+                    "name": stripped[:-1],
+                    "description": "",
+                    "mac_address": "",
+                    "dhcp_enabled": False,
+                    "ipv4_addresses": [],
+                    "ipv4_subnet_mask": None,
+                    "default_gateway": None,
+                    "dns_servers": []
+                }
+                # Reset the last label state for the new adapter.
+                last_label = None
+                continue
+
+            if current_adapter is None:
+                # Before any adapter has started, capture the global primary DNS suffix if present.
+                if ":" in stripped:
+                    label, _, value = stripped.partition(":")
+                    clean_label = label.replace(".", "").strip()
+                    if clean_label == "Primary DNS Suffix":
+                        info["primary_dns_suffix"] = value.strip()
+                continue
+
+            if ":" in stripped:
+                label, _, value = stripped.partition(":")
+                clean_label = label.replace(".", "").strip()
+                value = value.strip()
+                if clean_label == "Description":
+                    current_adapter["description"] = value
+                    last_label = None
+                elif clean_label == "Physical Address":
+                    current_adapter["mac_address"] = value
+                    last_label = None
+                elif clean_label == "DHCP Enabled":
+                    current_adapter["dhcp_enabled"] = value.lower() == "yes"
+                    last_label = None
+                elif clean_label == "IPv4 Address":
+                    if "(" in value:
+                        value = value.split("(", 1)[0].strip()
+                    current_adapter["ipv4_addresses"].append(value)
+                    last_label = None
+                elif clean_label == "Subnet Mask":
+                    current_adapter["ipv4_subnet_mask"] = value if value else None
+                    last_label = None
+                elif clean_label == "Default Gateway":
+                    if value:
+                        current_adapter["default_gateway"] = value
+                    last_label = None
+                elif clean_label == "DNS Servers":
+                    if value:
+                        current_adapter["dns_servers"].append(value)
+                    last_label = "dns_servers"
+                else:
+                    last_label = None
+            elif last_label == "dns_servers" and stripped.strip():
+                current_adapter["dns_servers"].append(stripped.strip())
+
+        if current_adapter is not None:
+            # Append the very last adapter once parsing completes.
+            info["adapters"].append(current_adapter)
     except Exception as e:
         add_warning(snapshot, "network_configuration failed: " + str(e))
     return info
@@ -726,10 +803,71 @@ def get_network_configuration(snapshot):
 
 def add_listening_ports(snapshot):
     try:
-        # TODO Milestone 7b: parse `netstat -ano` and append one dict per
-        # listening port to snapshot["listening_ports"].
-        # Remember: this function does NOT return anything.
-        pass
+        # Build a PID-to-process-name lookup from tasklist so we can enrich netstat results.
+        process_names = {}
+        # Run tasklist in CSV format without a header row.
+        tasklist_output = run_command(["tasklist", "/fo", "csv", "/nh"])
+        reader = csv.reader(io.StringIO(tasklist_output))
+        for row in reader:
+            # Skip any malformed rows that do not have the expected columns.
+            if len(row) < 2:
+                continue
+            pid_str = row[1].strip()
+            name = row[0].strip()
+            try:
+                pid = int(pid_str)
+            except ValueError:
+                # Skip rows with invalid PID values.
+                continue
+            process_names[pid] = name
+
+        # Run netstat to collect listening TCP ports and all UDP endpoints.
+        netstat_output = run_command(["netstat", "-ano"])
+        for line in netstat_output.splitlines():
+            stripped = line.strip()
+            # Skip blank lines and the header row from netstat.
+            if not stripped or stripped.startswith("Proto"):
+                continue
+            parts = stripped.split()
+            # Skip lines that are too short to parse.
+            if len(parts) < 4:
+                continue
+            protocol = parts[0]
+            local = parts[1]
+            pid_str = parts[-1]
+            state = None
+            if protocol == "TCP":
+                if len(parts) < 5:
+                    continue
+                state = parts[3]
+                if state != "LISTENING":
+                    continue
+            elif protocol != "UDP":
+                continue
+
+            colon_index = local.rfind(":")
+            if colon_index == -1:
+                continue
+            local_address = local[:colon_index]
+            local_port_str = local[colon_index + 1:]
+            try:
+                local_port = int(local_port_str)
+            except ValueError:
+                continue
+
+            try:
+                owning_pid = int(pid_str)
+            except ValueError:
+                continue
+
+            snapshot.setdefault("listening_ports", []).append({
+                "protocol": protocol,
+                "local_address": local_address,
+                "local_port": local_port,
+                "state": state,
+                "owning_pid": owning_pid,
+                "owning_process_name": process_names.get(owning_pid)
+            })
     except Exception as e:
         add_warning(snapshot, "listening_ports failed: " + str(e))
 

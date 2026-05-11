@@ -91,10 +91,10 @@ def main():
     snapshot["persistence_locations"] = helpers.get_persistence_locations(snapshot)
 
     # ===== Milestone 7 =====
-    # print("Collecting network configuration...")
-    # snapshot["network_configuration"] = helpers.get_network_configuration(snapshot)
-    # print("Collecting listening ports...")
-    # helpers.add_listening_ports(snapshot)     # mutator — no assignment
+    print("Collecting network configuration...")
+    snapshot["network_configuration"] = helpers.get_network_configuration(snapshot)
+    print("Collecting listening ports...")
+    helpers.add_listening_ports(snapshot)     # mutator — no assignment
 
     # ===== Milestone 8 =====
     # print("Collecting network shares...")
