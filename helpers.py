@@ -551,11 +551,63 @@ def add_running_processes(snapshot):
 # AI prompt: see Milestone 6 in the project spec.
 
 def get_persistence_locations(snapshot):
+    # Create the dict we will return with persistence location sections.
     info = {}
     try:
-        # TODO Milestone 6: enumerate the 4 Run/RunOnce keys and list
-        # the contents of the 2 Startup folders.
-        pass
+        # Define a helper that reads all name/value pairs from a registry value key.
+        def enum_reg_values(hive, subkey):
+            # Collect values into a list of dicts for the caller.
+            values = []
+            try:
+                # Open the registry key for reading all values inside it.
+                key = winreg.OpenKey(hive, subkey)
+                # Start enumeration at index 0 to get the first value.
+                i = 0
+                while True:
+                    try:
+                        # Get the i-th value tuple (name, data, type).
+                        name, value, value_type = winreg.EnumValue(key, i)
+                        # Append the value name and data as a dictionary.
+                        values.append({"name": name, "value": value})
+                        # Move to the next value index.
+                        i += 1
+                    except OSError:
+                        # No more values under this key, so stop enumerating.
+                        break
+                # Close the registry key when done to release resources.
+                winreg.CloseKey(key)
+            except OSError:
+                # If the key does not exist or cannot be opened, return an empty list.
+                return []
+            return values
+
+        # Enumerate the 4 persistence-related registry keys.
+        info["hklm_run"] = enum_reg_values(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run")
+        info["hkcu_run"] = enum_reg_values(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run")
+        info["hklm_run_once"] = enum_reg_values(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce")
+        info["hkcu_run_once"] = enum_reg_values(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce")
+
+        # Build the startup folder paths from environment variables.
+        all_users_path = os.path.join(os.environ.get("PROGRAMDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+        current_user_path = os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+
+        try:
+            # List files in the all-users startup folder; sort for predictable output.
+            all_users_files = sorted(os.listdir(all_users_path))
+        except Exception:
+            # If the folder is missing or unreadable, use an empty list.
+            all_users_files = []
+
+        try:
+            # List files in the current-user startup folder; sort for predictable output.
+            current_user_files = sorted(os.listdir(current_user_path))
+        except Exception:
+            # If the folder is missing or unreadable, use an empty list.
+            current_user_files = []
+
+        # Store the startup folder details in the returned info dict.
+        info["all_users_startup_folder"] = {"path": all_users_path, "files": all_users_files}
+        info["current_user_startup_folder"] = {"path": current_user_path, "files": current_user_files}
     except Exception as e:
         add_warning(snapshot, "persistence_locations failed: " + str(e))
     return info

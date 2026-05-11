@@ -87,8 +87,8 @@ def main():
     helpers.add_running_processes(snapshot)   # mutator — no assignment
 
     # ===== Milestone 6 =====
-    # print("Collecting persistence locations...")
-    # snapshot["persistence_locations"] = helpers.get_persistence_locations(snapshot)
+    print("Collecting persistence locations...")
+    snapshot["persistence_locations"] = helpers.get_persistence_locations(snapshot)
 
     # ===== Milestone 7 =====
     # print("Collecting network configuration...")
