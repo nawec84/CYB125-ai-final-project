@@ -97,22 +97,20 @@ def main():
     helpers.add_listening_ports(snapshot)     # mutator — no assignment
 
     # ===== Milestone 8 =====
-    # print("Collecting network shares...")
-    # snapshot["network_shares"] = helpers.get_network_shares(snapshot)
-    # print("Collecting installed hotfixes...")
-    # snapshot["installed_hotfixes"] = helpers.get_installed_hotfixes(snapshot)
-    # print("Collecting local user accounts...")
-    # snapshot["local_user_accounts"] = helpers.get_local_user_accounts(snapshot)
-    # print("Collecting hardware profile...")
-    # snapshot["hardware_profile"] = helpers.get_hardware_profile(snapshot)
-    # print("Collecting security posture...")
-    # snapshot["security_posture"] = helpers.get_security_posture(snapshot)
-    # print("Collecting performance snapshot...")
-    # snapshot["performance_snapshot"] = helpers.get_performance_snapshot(snapshot)
-    # print("Collecting scheduled tasks... (this can be slow)")
-    # snapshot["scheduled_tasks"] = helpers.get_scheduled_tasks(snapshot)
-    # print("Collecting auto-start services... (this is the slowest one)")
-    # snapshot["auto_start_services"] = helpers.get_auto_start_services(snapshot)
+    print("Collecting network shares...")
+    snapshot["network_shares"] = helpers.get_network_shares(snapshot)
+    print("Collecting installed hotfixes...")
+    snapshot["installed_hotfixes"] = helpers.get_installed_hotfixes(snapshot)
+    print("Collecting local user accounts...")
+    snapshot["local_user_accounts"] = helpers.get_local_user_accounts(snapshot)
+    print("Collecting hardware profile...")
+    snapshot["hardware_profile"] = helpers.get_hardware_profile(snapshot)
+    print("Collecting security posture...")
+    snapshot["security_posture"] = helpers.get_security_posture(snapshot)
+    print("Collecting performance snapshot...")
+    snapshot["performance_snapshot"] = helpers.get_performance_snapshot(snapshot)
+    print("Collecting auto-start services... (this is the slowest one)")
+    snapshot["auto_start_services"] = helpers.get_auto_start_services(snapshot)
 
     # Record how long the whole collection took
     duration = time.time() - start_time
